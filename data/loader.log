@@ -1,0 +1,556 @@
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@  Now move to loader.py code 
+# data/loader.py
+"""
+Data loading and processing functions
+"""
+import streamlit as st
+import pandas as pd
+import os
+from pathlib import Path
+import logging
+from datetime import datetime  # ✅ ADD THIS LINE
+# ---------------------- Logging setup (file-only) ----------------------
+# Ensure logs folder exists
+# os.makedirs("logs", exist_ok=True)
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)  # Use INFO in production if verbose
+
+# Avoid adding duplicate handlers across Streamlit reloads
+if not any(isinstance(h, logging.FileHandler) and getattr(h, 'baseFilename', '').endswith('logs/loader.log') for h in logger.handlers):
+    fh = logging.FileHandler("data/loader.log", mode="a", encoding="utf-8")
+    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(name)s - %(message)s")
+    fh.setFormatter(formatter)
+    logger.addHandler(fh)
+
+# ---------------------- Functions ----------------------
+
+@st.cache_data
+def load_forecast_data(filename):
+    """Load forecast CSV data with comprehensive error handling"""
+    logger.debug("load_forecast_data called with filename: %s", filename)
+    try:
+        if not os.path.exists(filename):
+            logger.error("File not found: %s", filename)
+            st.error(f"File not found: {filename}")
+            return None
+
+        df = pd.read_csv(filename)
+        logger.debug("Raw CSV loaded: %s rows, %s cols", df.shape[0], df.shape[1])
+
+        if df.empty:
+            logger.error("File is empty: %s", filename)
+            st.error(f"File {filename} is empty")
+            return None
+
+        required_cols = ['Datetime', 'T2M']
+        missing_cols = [col for col in required_cols if col not in df.columns]
+        if missing_cols:
+            logger.error("Missing required columns in %s: %s", filename, missing_cols)
+            st.error(f"Missing required columns in {filename}: {missing_cols}")
+            return None
+
+        datetime_formats = [
+            '%d-%m-%Y %H:%M:%S',
+            '%d-%m-%Y %H:%M',
+            '%Y-%m-%d %H:%M:%S',
+            '%Y-%m-%d %H:%M',
+            '%d/%m/%Y %H:%M:%S',
+            '%d/%m/%Y %H:%M'
+        ]
+
+        datetime_parsed = False
+
+        for fmt in datetime_formats:
+            try:
+                df['Datetime'] = pd.to_datetime(df['Datetime'], format=fmt)
+                datetime_parsed = True
+                logger.debug("Parsed Datetime using format: %s", fmt)
+                break
+            except ValueError:
+                logger.debug("Format %s did not match; trying next", fmt)
+                continue
+
+        if not datetime_parsed:
+            try:
+                df['Datetime'] = pd.to_datetime(df['Datetime'], dayfirst=True)
+                datetime_parsed = True
+                logger.debug("Parsed Datetime using dayfirst auto-parse")
+            except Exception as e:
+                logger.exception("Could not parse datetime column in %s: %s", filename, str(e))
+                st.error(f"Could not parse datetime column in {filename}: {str(e)}")
+                return None
+
+        logger.debug("load_forecast_data returning DataFrame with shape: %s", df.shape)
+        return df
+
+    except Exception as e:
+        logger.exception("Error loading %s: %s", filename, str(e))
+        st.error(f"Error loading {filename}: {str(e)}")
+        return None
+
+
+@st.cache_data
+def get_available_dates(filename):
+    """Extract available dates from CSV file"""
+    logger.debug("get_available_dates called for: %s", filename)
+    try:
+        if not os.path.exists(filename):
+            logger.warning("File not found for available dates: %s", filename)
+            return []
+
+        df = pd.read_csv(filename)
+        logger.debug("Loaded file for date extraction: %s rows", len(df))
+
+        datetime_formats = [
+            '%d-%m-%Y %H:%M:%S',
+            '%d-%m-%Y %H:%M',
+            '%Y-%m-%d %H:%M:%S',
+            '%Y-%m-%d %H:%M'
+        ]
+
+        parsed = False
+        for fmt in datetime_formats:
+            try:
+                df['Datetime'] = pd.to_datetime(df['Datetime'], format=fmt)
+                parsed = True
+                logger.debug("Parsed Datetime (for available dates) with format: %s", fmt)
+                break
+            except Exception:
+                continue
+
+        if not parsed:
+            try:
+                df['Datetime'] = pd.to_datetime(df['Datetime'], dayfirst=True)
+                logger.debug("Parsed Datetime (for available dates) with dayfirst auto-parse")
+            except Exception as e:
+                logger.exception("Failed to parse available dates in %s: %s", filename, str(e))
+                st.error(f"Error reading dates from {filename}: {str(e)}")
+                return []
+
+        df['Date'] = df['Datetime'].dt.date
+        available_dates = sorted(df['Date'].unique())
+        logger.debug("get_available_dates found %d unique dates", len(available_dates))
+        return available_dates
+
+    except Exception as e:
+        logger.exception("Error reading dates from %s: %s", filename, str(e))
+        st.error(f"Error reading dates from {filename}: {str(e)}")
+        return []
+
+
+def filter_data_by_date_and_interval(data, start_date, end_date, time_interval):
+    """Filter data based on date range and time interval"""
+    logger.debug("filter_data_by_date_and_interval called: start=%s end=%s interval=%s", start_date, end_date, time_interval)
+    try:
+        df = data.copy()
+        df['Datetime'] = pd.to_datetime(df['Datetime'])
+
+        df['Date'] = df['Datetime'].dt.date
+        df = df[(df['Date'] >= start_date) & (df['Date'] <= end_date)].copy()
+        df = df.sort_values('Datetime').reset_index(drop=True)
+
+        logger.debug("After date range filter: %d rows", len(df))
+        if len(df) == 0:
+            logger.debug("No rows found after date filter")
+            return df
+
+        df['Hour'] = df['Datetime'].dt.hour
+
+        interval_hours = {
+            "1 Hour": list(range(24)),
+            "3 Hours": [1, 4, 7, 10, 13, 16, 19, 22],
+            "6 Hours": [1, 7, 13, 19],
+            "12 Hours": [1, 13],
+            "24 Hours": [1]
+        }
+
+        hours_to_keep = interval_hours.get(time_interval, list(range(24)))
+        logger.debug("Hours to keep for '%s': %s", time_interval, hours_to_keep)
+
+        filtered_df = df[df['Hour'].isin(hours_to_keep)].copy()
+        filtered_df = filtered_df.drop(['Date', 'Hour'], axis=1)
+
+        logger.debug("After interval filter: %d rows (days=%d)", len(filtered_df), (end_date - start_date).days + 1)
+        return filtered_df
+
+    except Exception as e:
+        logger.exception("Error in filter_data_by_date_and_interval: %s", str(e))
+        st.error(f"Error filtering data: {str(e)}")
+        return pd.DataFrame()
+
+
+#############################  RAINFALL FUNCTIONS  #############################
+
+def load_rainfall_predictions(algorithm_name, data_folder="files/rainfall_data"):
+    """
+    Load rainfall predictions for a specific algorithm with robust encoding handling
+    """
+    from config.constants import RAINFALL_FILE_MAPPING
+
+    logger.debug("load_rainfall_predictions called for algorithm: %s", algorithm_name)
+
+    if algorithm_name not in RAINFALL_FILE_MAPPING:
+        logger.error("Algorithm '%s' not in RAINFALL_FILE_MAPPING", algorithm_name)
+        st.error(f"Algorithm '{algorithm_name}' not found in RAINFALL_FILE_MAPPING")
+        return None
+
+    file_info = RAINFALL_FILE_MAPPING[algorithm_name]
+    file_path = Path(data_folder) / file_info["predictions"]
+
+    if not file_path.exists():
+        logger.error("Rainfall file not found: %s", file_path)
+        st.error(f"File not found: {file_path}")
+        return None
+
+    encodings_to_try = ['utf-8', 'utf-8-sig', 'latin-1', 'iso-8859-1', 'cp1252']
+    df = None
+
+    for encoding in encodings_to_try:
+        try:
+            logger.debug("Trying to read %s with encoding %s", file_path, encoding)
+            df = pd.read_csv(file_path, encoding=encoding, encoding_errors='replace')
+            logger.debug("Successfully read %s with encoding %s", file_path, encoding)
+            break
+        except Exception as e:
+            logger.debug("Failed reading with encoding %s: %s", encoding, str(e))
+            continue
+
+    if df is None:
+        logger.error("Could not read rainfall file %s with any encoding", file_path)
+        st.error(f"Could not read file {file_path} with any encoding")
+        return None
+
+    try:
+        df.columns = [str(col).strip() for col in df.columns]
+        logger.debug("Columns after strip: %s", list(df.columns))
+
+        if len(df.columns) >= 3:
+            df.columns = ['Datetime', 'Actual', f'{algorithm_name}_Prediction']
+            logger.debug("Renamed columns to: %s", list(df.columns))
+        else:
+            logger.error("Unexpected number of columns in %s: %d", file_path, len(df.columns))
+            st.error(f"Unexpected number of columns in {file_path}: {len(df.columns)}")
+            return None
+
+        datetime_formats = [
+            '%Y-%m-%d %H:%M:%S',
+            '%d-%m-%Y %H:%M:%S',
+            '%Y-%m-%d %H:%M',
+            '%d-%m-%Y %H:%M',
+            '%Y/%m/%d %H:%M:%S',
+            '%d/%m/%Y %H:%M:%S',
+        ]
+
+        datetime_parsed = False
+        for fmt in datetime_formats:
+            try:
+                df['Datetime'] = pd.to_datetime(df['Datetime'], format=fmt, errors='coerce')
+                if df['Datetime'].notna().any():
+                    datetime_parsed = True
+                    logger.debug("Parsed rainfall Datetime with format: %s", fmt)
+                    break
+            except Exception:
+                continue
+
+        if not datetime_parsed:
+            df['Datetime'] = pd.to_datetime(df['Datetime'], errors='coerce')
+            logger.debug("Parsed rainfall Datetime with flexible parse (errors coerced)")
+
+        df = df.dropna(subset=['Datetime'])
+        if df.empty:
+            logger.error("No valid data after datetime parsing in %s", file_path)
+            st.error(f"No valid data after datetime parsing in {file_path}")
+            return None
+
+        try:
+            df['Actual'] = pd.to_numeric(df['Actual'], errors='coerce').fillna(0).astype(int)
+            df[f'{algorithm_name}_Prediction'] = pd.to_numeric(
+                df[f'{algorithm_name}_Prediction'],
+                errors='coerce'
+            ).fillna(0).astype(int)
+            logger.debug("Converted Actual and Prediction to numeric/binary")
+        except Exception as e:
+            logger.exception("Error converting values to binary in %s: %s", file_path, str(e))
+            st.error(f"Error converting values to binary in {file_path}: {str(e)}")
+            return None
+
+        df['Actual'] = df['Actual'].clip(0, 1)
+        df[f'{algorithm_name}_Prediction'] = df[f'{algorithm_name}_Prediction'].clip(0, 1)
+
+        df = df.dropna()
+        df = df.sort_values('Datetime').reset_index(drop=True)
+
+        logger.debug("Rainfall predictions loaded successfully: %d rows", len(df))
+        return df
+
+    except Exception as e:
+        logger.exception("Error processing %s: %s", file_path, str(e))
+        import traceback
+        st.error(f"Error processing {file_path}: {str(e)}")
+        st.error(traceback.format_exc())
+        return None
+
+
+def load_rainfall_metrics(algorithm_name, data_folder="rainfall_data"):
+    """
+    Load rainfall metrics for a specific algorithm
+    """
+    from config.constants import CLASSIFICATION_METRICS
+
+    logger.debug("load_rainfall_metrics called for: %s", algorithm_name)
+
+    if algorithm_name in CLASSIFICATION_METRICS:
+        metrics = CLASSIFICATION_METRICS[algorithm_name].copy()
+        cleaned_metrics = {}
+        for key, value in metrics.items():
+            if isinstance(value, (int, float)):
+                cleaned_metrics[key] = float(value) if isinstance(value, float) else int(value)
+            else:
+                cleaned_metrics[key] = value
+        logger.debug("Metrics loaded for %s: %s", algorithm_name, cleaned_metrics)
+        return cleaned_metrics
+
+    logger.warning("No metrics found for algorithm: %s", algorithm_name)
+    st.warning(f"No metrics found for algorithm: {algorithm_name}")
+    return {}
+
+@st.cache_data
+def get_rainfall_data_for_display(algorithm_name):
+    """
+    Get formatted data for displaying rainfall predictions
+    """
+    logger.debug("get_rainfall_data_for_display called for: %s", algorithm_name)
+    try:
+        algorithm_name = str(algorithm_name).strip()
+        df = load_rainfall_predictions(algorithm_name)
+
+        if df is None or df.empty:
+            logger.error("Could not load data for %s", algorithm_name)
+            st.error(f"Could not load data for {algorithm_name}")
+            return None
+
+        metrics = load_rainfall_metrics(algorithm_name)
+
+        result = {
+            'data': df,
+            'algorithm': algorithm_name,
+            'prediction_column': f'{algorithm_name}_Prediction',
+            'metrics': metrics if metrics else {},
+            'type': 'classification'
+        }
+        logger.debug("get_rainfall_data_for_display returning data for %s (rows=%d)", algorithm_name, len(df))
+        return result
+
+    except Exception as e:
+        logger.exception("Error in get_rainfall_data_for_display for %s: %s", algorithm_name, str(e))
+        import traceback
+        st.error(f"Error in get_rainfall_data_for_display for {algorithm_name}: {str(e)}")
+        st.error(traceback.format_exc())
+        return None
+
+
+def get_available_rainfall_dates(data_folder="files/rainfall_data"):
+    """
+    Extract available dates from rainfall CSV files
+    Returns list of unique dates across all rainfall prediction files
+    """
+    from config.constants import RAINFALL_FILE_MAPPING
+
+    logger.debug("get_available_rainfall_dates called (data_folder=%s)", data_folder)
+    all_dates = set()
+
+    try:
+        file_info = RAINFALL_FILE_MAPPING.get("ANN")
+        if file_info:
+            file_path = Path(data_folder) / file_info["predictions"]
+            if file_path.exists():
+                df = None
+                for encoding in ['utf-8', 'latin-1', 'cp1252']:
+                    try:
+                        df = pd.read_csv(file_path, encoding=encoding)
+                        logger.debug("Read example rainfall file with encoding %s", encoding)
+                        break
+                    except Exception:
+                        continue
+
+                if df is None:
+                    logger.error("Could not read example rainfall file: %s", file_path)
+                    st.error(f"Could not read {file_path}")
+                    return []
+
+                datetime_formats = [
+                    '%Y-%m-%d %H:%M:%S',
+                    '%d-%m-%Y %H:%M:%S',
+                    '%Y-%m-%d %H:%M',
+                    '%d-%m-%Y %H:%M',
+                    '%Y/%m/%d %H:%M:%S',
+                    '%d/%m/%Y %H:%M:%S',
+                    '%Y/%m/%d %H:%M',
+                    '%d/%m/%Y %H:%M'
+                ]
+
+                datetime_parsed = False
+                for fmt in datetime_formats:
+                    try:
+                        df['datetime'] = pd.to_datetime(df.iloc[:, 0], format=fmt, errors='coerce')
+                        if df['datetime'].notna().any():
+                            datetime_parsed = True
+                            logger.debug("Parsed example rainfall datetime with format: %s", fmt)
+                            break
+                    except Exception:
+                        continue
+
+                if not datetime_parsed:
+                    df['datetime'] = pd.to_datetime(df.iloc[:, 0], dayfirst=True, errors='coerce')
+                    logger.debug("Parsed example rainfall datetime using flexible parse")
+
+                df = df.dropna(subset=['datetime'])
+                df['date'] = df['datetime'].dt.date
+                all_dates = set(df['date'].unique())
+
+        logger.debug("get_available_rainfall_dates found %d unique dates", len(all_dates))
+        return sorted(list(all_dates))
+
+    except Exception as e:
+        logger.exception("Error reading rainfall dates: %s", str(e))
+        st.error(f"Error reading rainfall dates: {str(e)}")
+        return []
+
+@st.cache_data
+def get_rainfall_date_range(data_folder="files/rainfall_data"):
+    """Get min/max dates from rainfall data without loading full predictions"""
+    from config.constants import RAINFALL_FILE_MAPPING
+    from pathlib import Path
+    
+    logger.debug("get_rainfall_date_range called")
+    
+    try:
+        file_info = RAINFALL_FILE_MAPPING.get("LSTM")
+        if not file_info:
+            logger.debug("LSTM not in RAINFALL_FILE_MAPPING, using defaults")
+            return datetime(2025, 8, 1).date(), datetime(2025, 8, 31).date()
+        
+        file_path = Path(data_folder) / file_info["predictions"]
+        if not file_path.exists():
+            logger.warning(f"Rainfall file not found: {file_path}, using defaults")
+            return datetime(2025, 8, 1).date(), datetime(2025, 8, 31).date()
+        
+        # ✅ Read only the datetime column (first column) to minimize memory
+        df = pd.read_csv(file_path, usecols=[0], encoding='utf-8', encoding_errors='replace')
+        
+        if df.empty:
+            logger.warning("Rainfall file is empty, using defaults")
+            return datetime(2025, 8, 1).date(), datetime(2025, 8, 31).date()
+        
+        # Get first and last values
+        first_val = df.iloc[0, 0]
+        last_val = df.iloc[-1, 0]
+        
+        # Try multiple datetime formats
+        datetime_formats = [
+            '%Y-%m-%d %H:%M:%S',
+            '%d-%m-%Y %H:%M:%S',
+            '%Y-%m-%d %H:%M',
+            '%d-%m-%Y %H:%M',
+            '%Y/%m/%d %H:%M:%S',
+            '%d/%m/%Y %H:%M:%S',
+        ]
+        
+        first_date = None
+        last_date = None
+        
+        # Try parsing first date
+        for fmt in datetime_formats:
+            try:
+                first_date = pd.to_datetime(first_val, format=fmt, errors='coerce')
+                if pd.notna(first_date):
+                    break
+            except:
+                continue
+        
+        if first_date is None or pd.isna(first_date):
+            first_date = pd.to_datetime(first_val, errors='coerce')
+        
+        # Try parsing last date
+        for fmt in datetime_formats:
+            try:
+                last_date = pd.to_datetime(last_val, format=fmt, errors='coerce')
+                if pd.notna(last_date):
+                    break
+            except:
+                continue
+        
+        if last_date is None or pd.isna(last_date):
+            last_date = pd.to_datetime(last_val, errors='coerce')
+        
+        # Return dates if valid
+        if pd.notna(first_date) and pd.notna(last_date):
+            min_date = first_date.date()
+            max_date = last_date.date()
+            logger.debug(f"Date range extracted: {min_date} to {max_date}")
+            return min_date, max_date
+        else:
+            logger.warning("Could not parse dates from file, using defaults")
+            return datetime(2025, 8, 1).date(), datetime(2025, 8, 31).date()
+            
+    except Exception as e:
+        logger.exception(f"Error getting date range: {e}")
+        return datetime(2025, 8, 1).date(), datetime(2025, 8, 31).date()
+
+# ---------------------- Developer utilities ----------------------
+
+def diagnose_csv_file(file_path):
+    """
+    Diagnose issues with a CSV file
+    """
+    print(f"\n{'='*60}")
+    print(f"Diagnosing: {file_path}")
+    print(f"{'='*60}")
+
+    if not Path(file_path).exists():
+        print(f"❌ File does not exist!")
+        return
+
+    file_size = Path(file_path).stat().st_size
+    print(f"File size: {file_size:,} bytes")
+
+    encodings = ['utf-8', 'utf-8-sig', 'latin-1', 'iso-8859-1', 'cp1252']
+    for encoding in encodings:
+        try:
+            df = pd.read_csv(file_path, encoding=encoding, nrows=5)
+            print(f"\n✅ Successfully read with encoding: {encoding}")
+            print(f"Columns: {list(df.columns)}")
+            print(f"First row:\n{df.iloc[0]}")
+            print(f"Data types:\n{df.dtypes}")
+            return
+        except Exception as e:
+            print(f"❌ Failed with {encoding}: {str(e)[:100]}")
+
+    print(f"\n❌ Could not read file with any encoding")
+
+
+def test_rainfall_data_loading():
+    """Test function to verify rainfall data loading"""
+    from config.constants import RAINFALL_FILE_MAPPING
+
+    st.write("### Testing Rainfall Data Loading")
+    logger.debug("test_rainfall_data_loading started")
+
+    for algo_name in RAINFALL_FILE_MAPPING.keys():
+        st.write(f"\n**Testing {algo_name}:**")
+
+        data = get_rainfall_data_for_display(algo_name)
+
+        if data:
+            st.success(f"✅ {algo_name} loaded successfully")
+            st.write(f"- Rows: {len(data['data'])}")
+            st.write(f"- Columns: {list(data['data'].columns)}")
+            st.write(f"- Date range: {data['data']['Datetime'].min()} to {data['data']['Datetime'].max()}")
+            st.write(f"- Has metrics: {bool(data['metrics'])}")
+            logger.debug("test_rainfall_data_loading: %s loaded (rows=%d)", algo_name, len(data['data']))
+        else:
+            st.error(f"❌ {algo_name} failed to load")
+            logger.error("test_rainfall_data_loading: %s failed to load", algo_name)
+
+    logger.debug("test_rainfall_data_loading finished")

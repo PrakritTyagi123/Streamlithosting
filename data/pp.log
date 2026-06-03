@@ -1,0 +1,60 @@
+2025-11-07 14:16:58,909 - DEBUG - Called get_algorithm_data_with_dates
+2025-11-07 14:16:58,909 - DEBUG - Inputs -> type: classical, algorithm: Long Short Term Memory (LSTM), start_date: 2025-05-08, end_date: 2025-06-07, interval: 1 Hour
+2025-11-07 14:16:58,910 - DEBUG - Selected filename: files/LSTM_forecast - LSTM_forecast.csv
+2025-11-07 14:16:58,915 - DEBUG - Data load result: 743 rows, 3 cols
+2025-11-07 14:16:58,915 - DEBUG - Available columns: ['Datetime', 'T2M', 'LSTM']
+2025-11-07 14:16:58,915 - DEBUG - Prediction column detected: LSTM
+2025-11-07 14:16:58,916 - DEBUG - Result dataset prepared with columns: ['Datetime', 'T2M', 'LSTM'] and shape: (743, 3)
+2025-11-07 14:16:58,917 - DEBUG - Applying date-range and interval filtering...
+2025-11-07 14:16:58,919 - DEBUG - Filtered data size: 743 rows
+2025-11-07 14:16:58,919 - DEBUG - Successfully returning filtered data
+2025-11-07 14:16:59,721 - DEBUG - Called get_algorithm_data_with_dates
+2025-11-07 14:16:59,722 - DEBUG - Inputs -> type: quantum, algorithm: Quantum Long Short Term Memory (QLSTM), start_date: 2025-05-08, end_date: 2025-06-07, interval: 1 Hour
+2025-11-07 14:16:59,722 - DEBUG - Selected filename: files/QLSTM_forecast - QLSTM_forecast.csv
+2025-11-07 14:16:59,736 - DEBUG - Data load result: 743 rows, 3 cols
+2025-11-07 14:16:59,743 - DEBUG - Available columns: ['Datetime', 'T2M', 'QLSTM']
+2025-11-07 14:16:59,746 - DEBUG - Prediction column detected: QLSTM
+2025-11-07 14:16:59,747 - DEBUG - Result dataset prepared with columns: ['Datetime', 'T2M', 'QLSTM'] and shape: (743, 3)
+2025-11-07 14:16:59,747 - DEBUG - Applying date-range and interval filtering...
+2025-11-07 14:16:59,751 - DEBUG - Filtered data size: 743 rows
+2025-11-07 14:16:59,752 - DEBUG - Successfully returning filtered data
+2025-11-07 14:24:13,018 - DEBUG - Called get_algorithm_data_with_dates
+2025-11-07 14:24:13,018 - DEBUG - Inputs -> type: classical, algorithm: Long Short Term Memory (LSTM), start_date: 2025-05-08, end_date: 2025-06-07, interval: 1 Hour
+2025-11-07 14:24:13,018 - DEBUG - Selected filename: files/LSTM_forecast - LSTM_forecast.csv
+2025-11-07 14:24:13,022 - DEBUG - Data load result: 743 rows, 3 cols
+2025-11-07 14:24:13,022 - DEBUG - Available columns: ['Datetime', 'T2M', 'LSTM']
+2025-11-07 14:24:13,022 - DEBUG - Prediction column detected: LSTM
+2025-11-07 14:24:13,022 - DEBUG - Result dataset prepared with columns: ['Datetime', 'T2M', 'LSTM'] and shape: (743, 3)
+2025-11-07 14:24:13,022 - DEBUG - Applying date-range and interval filtering...
+2025-11-07 14:24:13,026 - DEBUG - Filtered data size: 743 rows
+2025-11-07 14:24:13,026 - DEBUG - Successfully returning filtered data
+2025-11-07 14:24:13,825 - DEBUG - Called get_algorithm_data_with_dates
+2025-11-07 14:24:13,826 - DEBUG - Inputs -> type: quantum, algorithm: Quantum Long Short Term Memory (QLSTM), start_date: 2025-05-08, end_date: 2025-06-07, interval: 1 Hour
+2025-11-07 14:24:13,826 - DEBUG - Selected filename: files/QLSTM_forecast - QLSTM_forecast.csv
+2025-11-07 14:24:13,834 - DEBUG - Data load result: 743 rows, 3 cols
+2025-11-07 14:24:13,836 - DEBUG - Available columns: ['Datetime', 'T2M', 'QLSTM']
+2025-11-07 14:24:13,836 - DEBUG - Prediction column detected: QLSTM
+2025-11-07 14:24:13,838 - DEBUG - Result dataset prepared with columns: ['Datetime', 'T2M', 'QLSTM'] and shape: (743, 3)
+2025-11-07 14:24:13,838 - DEBUG - Applying date-range and interval filtering...
+2025-11-07 14:24:13,853 - DEBUG - Filtered data size: 743 rows
+2025-11-07 14:24:13,853 - DEBUG - Successfully returning filtered data
+2025-11-07 14:49:18,143 - DEBUG - Called get_algorithm_data_with_dates
+2025-11-07 14:49:18,146 - DEBUG - Inputs -> type: classical, algorithm: Long Short Term Memory (LSTM), start_date: 2025-06-01, end_date: 2025-06-07, interval: 24 Hours
+2025-11-07 14:49:18,146 - DEBUG - Selected filename: files/LSTM_forecast - LSTM_forecast.csv
+2025-11-07 14:49:18,152 - DEBUG - Data load result: 743 rows, 3 cols
+2025-11-07 14:49:18,153 - DEBUG - Available columns: ['Datetime', 'T2M', 'LSTM']
+2025-11-07 14:49:18,153 - DEBUG - Prediction column detected: LSTM
+2025-11-07 14:49:18,154 - DEBUG - Result dataset prepared with columns: ['Datetime', 'T2M', 'LSTM'] and shape: (743, 3)
+2025-11-07 14:49:18,155 - DEBUG - Applying date-range and interval filtering...
+2025-11-07 14:49:18,160 - DEBUG - Filtered data size: 7 rows
+2025-11-07 14:49:18,166 - DEBUG - Successfully returning filtered data
+2025-11-07 14:49:18,988 - DEBUG - Called get_algorithm_data_with_dates
+2025-11-07 14:49:19,002 - DEBUG - Inputs -> type: quantum, algorithm: Quantum Long Short Term Memory (QLSTM), start_date: 2025-06-01, end_date: 2025-06-07, interval: 24 Hours
+2025-11-07 14:49:19,002 - DEBUG - Selected filename: files/QLSTM_forecast - QLSTM_forecast.csv
+2025-11-07 14:49:19,011 - DEBUG - Data load result: 743 rows, 3 cols
+2025-11-07 14:49:19,012 - DEBUG - Available columns: ['Datetime', 'T2M', 'QLSTM']
+2025-11-07 14:49:19,013 - DEBUG - Prediction column detected: QLSTM
+2025-11-07 14:49:19,014 - DEBUG - Result dataset prepared with columns: ['Datetime', 'T2M', 'QLSTM'] and shape: (743, 3)
+2025-11-07 14:49:19,014 - DEBUG - Applying date-range and interval filtering...
+2025-11-07 14:49:19,018 - DEBUG - Filtered data size: 7 rows
+2025-11-07 14:49:19,019 - DEBUG - Successfully returning filtered data
