@@ -876,7 +876,7 @@ with tab3:
                     classical_info = st.session_state.combined_rain_data['classical']
                     quantum_info = st.session_state.combined_rain_data['quantum']
                     classical_data = classical_info['data']
-                    quantum_data = quantum_info['data']
+                    #quantum_data = quantum_info['data']
 
                     from visualization.charts import show_rain_forecast_with_tabs
 
